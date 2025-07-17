@@ -1,0 +1,198 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greece 2025 Itinerary Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        html, body, #map { height: 100%; width: 100%; margin: 0; }
+        .marker-pin {
+            width: 28px;
+            height: 28px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            margin-left: -14px;
+            margin-top: -14px;
+            border: 2px solid white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .marker-pin span {
+            transform: rotate(45deg);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+        }
+        .standalone span { color: black; }
+        .celestyal { background-color: red; }
+        .medsailors { background-color: green; }
+        .msc { background-color: purple; }
+        .non-cruise { background-color: blue; }
+        .standalone { background-color: yellow; }
+        .popup { font-family: Arial, sans-serif; font-size: 14px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([38, 20], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        const locations = [
+            { name: 'Houston, USA', coords: [29.6454, -95.2789], details: 'Depart: Aug 1, 15:40 (HOU to MCO)', cruise: 'non-cruise', order: 1 },
+            { name: 'Orlando, USA', coords: [28.4294, -81.3080], details: 'Arrive: Aug 1, 19:05<br>Depart: Aug 1, 22:55 (MCO to LHR)', cruise: 'non-cruise', order: 1 },
+            { name: 'London, UK', coords: [51.4700, -0.4543], details: 'Arrive: Aug 2, 12:35<br>Depart: Aug 2, 19:00 (LHR to ATH)', cruise: 'non-cruise', order: 2 },
+            { name: 'Athens, Greece', coords: [37.9364, 23.9445], details: 'Arrive: Aug 3, 00:40<br>Stay: Aug 3-4<br>Visit: Aug 3 (Pireos Avenue 78)', cruise: 'non-cruise', order: 2 },
+            { name: 'Lavrion, Greece', coords: [37.7145, 24.0561], details: 'Depart: Aug 4, 13:00 (Celestyal Cruise)<br>Arrive: Aug 8, 06:00<br>Visit: Aug 8 (John Aisopidi 12)', cruise: 'celestyal', order: 4 },
+            { name: 'Mykonos, Greece', coords: [37.4467, 25.3289], details: 'Arrive: Aug 4, 18:00<br>Depart: Aug 4, 23:00', cruise: 'celestyal', order: 4 },
+            { name: 'Kusadasi, Turkey', coords: [37.8601, 27.2577], details: 'Arrive: Aug 5, 07:00<br>Depart: Aug 5, 13:00', cruise: 'celestyal', order: 5 },
+            { name: 'Patmos, Greece', coords: [37.3086, 26.5477], details: 'Arrive: Aug 5, 16:30<br>Depart: Aug 5, 21:30', cruise: 'celestyal', order: 5 },
+            { name: 'Rhodes, Greece', coords: [36.4348, 28.2176], details: 'Arrive: Aug 6, 07:00<br>Depart: Aug 6, 18:00', cruise: 'celestyal', order: 6 },
+            { name: 'Heraklion, Greece', coords: [35.3387, 25.1442], details: 'Arrive: Aug 7, 07:00<br>Depart: Aug 7, 12:00', cruise: 'celestyal', order: 7 },
+            { name: 'Santorini, Greece', coords: [36.3932, 25.4615], details: 'Arrive: Aug 7, 16:30<br>Depart: Aug 7, 21:30<br>Arrive: Aug 25, 08:00<br>Depart: Aug 25, 18:00', cruise: 'celestyal', order: 7 },
+            { name: 'Alimos, Greece', coords: [37.9122, 23.7026], details: 'Depart: Aug 9 (MedSailors Sailboat)<br>Arrive: Aug 15', cruise: 'medsailors', order: 9 },
+            { name: 'Aegina, Greece', coords: [37.7469, 23.4308], details: 'Visit: Aug 9', cruise: 'medsailors', order: 9 },
+            { name: 'Ermioni, Greece', coords: [37.3849, 23.2469], details: 'Visit: Aug 10', cruise: 'medsailors', order: 10 },
+            { name: 'Hydra, Greece', coords: [37.3498, 23.4656], details: 'Visit: Aug 11', cruise: 'medsailors', order: 11 },
+            { name: 'Poros, Greece', coords: [37.4994, 23.4536], details: 'Visit: Aug 12', cruise: 'medsailors', order: 12 },
+            { name: 'Epidavros, Greece', coords: [37.5962, 23.0765], details: 'Visit: Aug 13', cruise: 'medsailors', order: 13 },
+            { name: 'Agistri, Greece', coords: [37.7093, 23.3478], details: 'Visit: Aug 14', cruise: 'medsailors', order: 14 },
+            { name: 'Milos, Greece', coords: [36.6969, 24.4750], details: 'Arrive: Aug 15, 19:25<br>Stay: Aug 15-18<br>Visit: Aug 15 (Liogerma, Adamantas)<br>Depart: Aug 18, 13:25 (MLO to ATH)', cruise: 'non-cruise', order: 15 },
+            { name: 'Athens Airport, Greece', coords: [37.9464, 23.9545], details: 'Depart: Aug 15, 18:45 (ATH to MLO)<br>Arrive: Aug 18, Afternoon (from MLO)<br>Depart: Aug 27, 08:45 (ATH to LHR)', cruise: 'non-cruise', order: 15 },
+            { name: 'Piraeus, Greece', coords: [37.9475, 23.6371], details: 'Arrive: Aug 18, Afternoon<br>Visit: Aug 18 (Spyrou Trikoupi 38)<br>Stay: Aug 18-19<br>Depart: Aug 19, 17:00 (MSC Cruise)<br>Arrive: Aug 26, 06:00<br>Stay: Aug 26-27', cruise: 'msc', order: 18 },
+            { name: 'Katakolon (Olympia), Greece', coords: [37.6462, 21.3192], details: 'Arrive: Aug 20, 09:30<br>Depart: Aug 20, 18:30', cruise: 'msc', order: 20 },
+            { name: 'Corfu, Greece', coords: [39.6243, 19.9217], details: 'Arrive: Aug 21, 09:00<br>Depart: Aug 21, 18:00', cruise: 'msc', order: 21 },
+            { name: 'Kefalonia, Greece', coords: [38.1754, 20.5692], details: 'Arrive: Aug 22, 08:00<br>Depart: Aug 22, 16:00', cruise: 'msc', order: 22 },
+            { name: 'Bari, Italy', coords: [41.1171, 16.8719], details: 'Arrive: Aug 23, 08:00<br>Depart: Aug 23, 19:00', cruise: 'msc', order: 23 },
+            { name: 'Athens, Greece', coords: [37.9640, 23.7270], details: 'Visit: Aug 26 (115 Syngrou Avenue)', cruise: 'standalone', order: 26 },
+            { name: 'London, UK', coords: [51.5174, -0.1178], details: 'Arrive: Aug 27, 10:50<br>Depart: Aug 27, 15:45 (LHR to MCO)', cruise: 'non-cruise', order: 27 },
+            { name: 'Orlando, USA', coords: [28.5483, -81.3692], details: 'Arrive: Aug 27, 20:30<br>Visit: Aug 27 (2635 McCoy Road)<br>Stay: Aug 27-28<br>Depart: Aug 28, 06:25 (MCO to HOU)', cruise: 'non-cruise', order: 27 },
+            { name: 'Houston, USA', coords: [29.7704, -95.3598], details: 'Arrive: Aug 28, 07:55', cruise: 'non-cruise', order: 28 }
+        ];
+        locations.forEach((location, index) => {
+            L.marker(location.coords, {
+                icon: L.divIcon({
+                    className: `marker-pin ${location.cruise}`,
+                    html: `<span>${location.order}</span>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                }),
+                zIndexOffset: 1000 - location.order
+            })
+                .addTo(map)
+                .bindPopup(`<div class="popup"><b>${location.name}</b><br>${location.details}</div>`);
+        });
+        const routes = [
+            { from: 0, to: 1, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 1, to: 2, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 2, to: 3, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 3, to: 4, color: 'gray', type: 'Transit', weight: 3, opacity: 0.6 },
+            { from: 4, to: 5, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 5, to: 6, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 6, to: 7, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 7, to: 8, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 8, to: 9, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 9, to: 10, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 10, to: 4, color: 'red', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 4, to: 11, color: 'gray', type: 'Transit', weight: 3, opacity: 0.6 },
+            { from: 11, to: 12, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 12, to: 13, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 13, to: 14, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 14, to: 15, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 15, to: 16, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 16, to: 17, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 17, to: 11, color: 'green', type: 'Sailboat', weight: 6, opacity: 1 },
+            { from: 11, to: 19, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 19, to: 18, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 18, to: 20, color: 'gray', type: 'Transit', weight: 3, opacity: 0.6 },
+            { from: 20, to: 21, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 21, to: 22, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 22, to: 23, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 23, to: 24, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 24, to: 10, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 10, to: 20, color: 'purple', type: 'Cruise', weight: 6, opacity: 1 },
+            { from: 20, to: 25, color: 'gray', type: 'Transit', weight: 3, opacity: 0.6 },
+            { from: 25, to: 19, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 19, to: 26, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 26, to: 27, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' },
+            { from: 27, to: 28, color: 'blue', type: 'Flight', weight: 3, opacity: 0.6, dashArray: '5, 10' }
+        ];
+        routes.forEach(route => {
+            const coords = [locations[route.from].coords, locations[route.to].coords];
+            L.polyline(coords, {
+                color: route.color,
+                weight: route.weight,
+                opacity: route.opacity,
+                dashArray: route.dashArray
+            })
+                .addTo(map)
+                .bindPopup(`${route.type}: ${locations[route.from].name} to ${locations[route.to].name}`);
+        });
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend');
+            div.style.backgroundColor = 'white';
+            div.style.padding = '10px';
+            div.style.border = '1px solid #ccc';
+            div.innerHTML = `
+                <h4>Legend</h4>
+                <div><span style="display: inline-block; width: 15px; height: 15px; background-color: blue;"></span> Non-Cruise (Flights/Transit)</div>
+                <div><span style="display: inline-block; width: 15px; height: 15px; background-color: red;"></span> Celestyal Cruise</div>
+                <div><span style="display: inline-block; width: 15px; height: 15px; background-color: green;"></span> MedSailors Sailboat</div>
+                <div><span style="display: inline-block; width: 15px; height: 15px; background-color: purple;"></span> MSC Cruise</div>
+                <div><span style="display: inline-block; width: 15px; height: 15px; background-color: yellow;"></span> Standalone Visit</div>
+                <div><span style="display: inline-block; width: 15px; height: 2px; background-color: blue; border: 1px dashed black;"></span> Flight Route</div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+        const bounds = L.latLngBounds(locations.map(loc => loc.coords));
+        map.fitBounds(bounds, { padding: [50, 50] });
+    </script>
+</body>
+</html>
